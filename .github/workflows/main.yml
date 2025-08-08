@@ -24,7 +24,7 @@ jobs:
         run: |
           pip install bandit
           curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
-          curl -sL https://github.com/bridgecrewio/checkov/releases/latest/download/checkov -o /usr/local/bin/checkov
+          curl -sSL https://github.com/bridgecrewio/checkov/releases/latest/download/checkov_Linux_x86_64 -o /usr/local/bin/checkov
           chmod +x /usr/local/bin/checkov
           curl -s https://raw.githubusercontent.com/zricethezav/gitleaks/main/install.sh | bash
 
