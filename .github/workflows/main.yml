@@ -29,12 +29,17 @@ jobs:
           curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_linux_x64 -o /usr/local/bin/gitleaks
           chmod +x /usr/local/bin/gitleaks
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.7
+
       - name: Format & Validate Terraform
         run: |
           terraform init
           terraform fmt -check
           terraform validate
-
+          
       - name: Run tfsec
         run: tfsec ./terraform || exit 1
 
