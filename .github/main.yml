@@ -1,0 +1,61 @@
+# name: Secure My Stack CI Pipeline
+
+# on:
+#   push:
+#     branches: [develop]
+#   pull_request:
+#     branches: [develop]
+
+# jobs:
+#   secure-pipeline:
+#     name: Run Security Checks
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: '3.11'
+
+#       - name: Install tools
+#         run: |
+#           pip install bandit
+#           curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+#           curl -sL https://github.com/bridgecrewio/checkov/releases/latest/download/checkov -o /usr/local/bin/checkov
+#           chmod +x /usr/local/bin/checkov
+#           curl -s https://raw.githubusercontent.com/zricethezav/gitleaks/main/install.sh | bash
+
+#       - name: Format & Validate Terraform
+#         run: |
+#           terraform init
+#           terraform fmt -check
+#           terraform validate
+
+#       - name: Run tfsec
+#         run: tfsec ./terraform || exit 1
+
+#       - name: Run checkov
+#         run: checkov -d ./terraform || exit 1
+
+#       - name: Run Bandit
+#         run: bandit -r ./python-app || exit 1
+
+#       - name: Run gitleaks
+#         run: gitleaks detect --source=. --no-banner || exit 1
+
+#       - name: Notify on Failure
+#         if: failure()
+#         run: echo "❌ Build failed due to a security or validation error. Please review the logs."
+
+#       - name: Deploy Infrastructure with Terraform
+#         if: success()
+#         env:
+#           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           AWS_DEFAULT_REGION: "us-east-1"
+#         run: |
+#           terraform init
+#           terraform apply -auto-approve
