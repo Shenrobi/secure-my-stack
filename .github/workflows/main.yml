@@ -24,10 +24,14 @@ jobs:
         run: |
           pip install bandit
           curl -sSL https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
-          curl -sSL https://github.com/bridgecrewio/checkov/releases/latest/download/checkov_Linux_x86_64 -o /usr/local/bin/checkov
-          chmod +x /usr/local/bin/checkov
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_linux_x64 -o /usr/local/bin/gitleaks
-          chmod +x /usr/local/bin/gitleaks
+
+          curl -sSL https://github.com/bridgecrewio/checkov/releases/latest/download/checkov_Linux_x86_64 -o checkov
+          chmod +x checkov
+          sudo mv checkov /usr/local/bin/
+
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_linux_x64 -o gitleaks
+          chmod +x gitleaks
+          sudo mv gitleaks /usr/local/bin/
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -36,11 +40,12 @@ jobs:
 
       - name: Format & Validate Terraform
         continue-on-error: true
+        working-directory: ./terraform
         run: |
           terraform init
           terraform fmt -check
           terraform validate
-          
+
       - name: Run tfsec
         continue-on-error: true
         run: tfsec ./terraform
@@ -63,6 +68,7 @@ jobs:
 
       - name: Deploy Infrastructure with Terraform
         if: success()
+        working-directory: ./terraform
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
