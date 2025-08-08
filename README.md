@@ -21,3 +21,5 @@ This project demonstrates a complete DevSecOps pipeline integrating security che
    - Bandit scan on Python app
    - Gitleaks scan for secrets
 4. Merge only if all security gates pass ✅
+
+🚀 Blasting off!
