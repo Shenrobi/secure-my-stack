@@ -23,11 +23,12 @@ jobs:
       - name: Install tools
         run: |
           pip install bandit
-          curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+          curl -sSfL https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install.sh | sh -s -- -b /usr/local/bin
           curl -sSL https://github.com/bridgecrewio/checkov/releases/latest/download/checkov_Linux_x86_64 -o /usr/local/bin/checkov
           chmod +x /usr/local/bin/checkov
-          curl -s https://raw.githubusercontent.com/zricethezav/gitleaks/main/install.sh | bash
-
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o /usr/local/bin/gitleaks
+          chmod +x /usr/local/bin/gitleaks
+          
       - name: Format & Validate Terraform
         run: |
           terraform init
