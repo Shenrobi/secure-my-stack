@@ -87,13 +87,20 @@ jobs:
             fi
           fi
           
-          # Check Bandit for MEDIUM/HIGH issues only (ignore LOW)
+          # Check Bandit for MEDIUM/HIGH issues or hardcoded passwords (B105)
           if [ -f bandit-results.json ]; then
             HIGH_BANDIT=$(cat bandit-results.json | jq '.metrics.SEVERITY_HIGH // 0')
             MEDIUM_BANDIT=$(cat bandit-results.json | jq '.metrics.SEVERITY_MEDIUM // 0')
             echo "Bandit: Found $HIGH_BANDIT HIGH and $MEDIUM_BANDIT MEDIUM severity issues"
+
+            # Check for B105 (hardcoded passwords)
+            B105_COUNT=$(cat bandit-results.json | jq '[.results[]? | select(.test_id == "B105")] | length' || echo "0")
+
             if [ "$HIGH_BANDIT" -gt 0 ] || [ "$MEDIUM_BANDIT" -gt 0 ]; then
               echo "❌ Bandit: Blocking deployment due to MEDIUM/HIGH issues"
+              BLOCK_DEPLOYMENT=true
+            elif [ "$B105_COUNT" -gt 0 ]; then
+              echo "❌ Bandit: Found $B105_COUNT hardcoded passwords (B105) - blocking deployment"
               BLOCK_DEPLOYMENT=true
             else
               echo "⚠️ Bandit: LOW severity issues found but not blocking deployment"
@@ -121,8 +128,7 @@ jobs:
   deploy:
     name: Deploy Infrastructure with Terraform
     runs-on: ubuntu-latest
-    needs: scan  # CRITICAL FIX: Makes deployment dependent on successful security scans
-    # Only deploy on push to develop, not on pull requests
+    needs: scan
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     steps:
       - name: Checkout code
@@ -138,7 +144,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1  # Update with your preferred region
+          aws-region: us-east-1
       
       - name: Terraform Init
         run: terraform init
