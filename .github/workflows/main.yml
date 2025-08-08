@@ -1,5 +1,4 @@
 name: Secure My Stack CI Pipeline
-
 on:
   push:
     branches: [develop]
@@ -7,72 +6,78 @@ on:
     branches: [develop]
 
 jobs:
-  secure-pipeline:
-    name: Run Security Checks
+  scan:
+    name: Run Security Scans
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
-      - name: Install tools
+      
+      - name: Install Security Tools
         run: |
-          pip install bandit
+          pip install bandit checkov
           curl -sSL https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
-
-          curl -sSL https://github.com/bridgecrewio/checkov/releases/latest/download/checkov_Linux_x86_64 -o checkov
-          chmod +x checkov
-          sudo mv checkov /usr/local/bin/
-
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_linux_x64 -o gitleaks
-          chmod +x gitleaks
-          sudo mv gitleaks /usr/local/bin/
-
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar xz
+          chmod +x gitleaks && sudo mv gitleaks /usr/local/bin/
+      
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.7
-
+      
       - name: Format & Validate Terraform
-        continue-on-error: true
-        working-directory: ./terraform
         run: |
           terraform init
           terraform fmt -check
           terraform validate
-
+      
       - name: Run tfsec
-        continue-on-error: true
         run: tfsec ./terraform
-
+      
       - name: Run checkov
-        continue-on-error: true
         run: checkov -d ./terraform
-
+      
       - name: Run Bandit
-        continue-on-error: true
         run: bandit -r ./python-app
-
+      
       - name: Run gitleaks
-        continue-on-error: true
         run: gitleaks detect --source=. --no-banner
 
-      - name: Notify on Failure
-        if: failure()
-        run: echo "❌ Build failed due to a security or validation error. Please review the logs."
-
-      - name: Deploy Infrastructure with Terraform
-        if: success()
+  deploy:
+    name: Deploy Infrastructure with Terraform
+    runs-on: ubuntu-latest
+    needs: scan  # CRITICAL FIX: Makes deployment dependent on successful security scans
+    # Only deploy on push to develop, not on pull requests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.7
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1  # Update with your preferred region
+      
+      - name: Terraform Init
+        run: terraform init
         working-directory: ./terraform
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: "us-east-1"
-        run: |
-          terraform init
-          terraform apply -auto-approve
+      
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        working-directory: ./terraform
+      
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: ./terraform
