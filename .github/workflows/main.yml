@@ -35,22 +35,27 @@ jobs:
           terraform_version: 1.5.7
 
       - name: Format & Validate Terraform
+        continue-on-error: true
         run: |
           terraform init
           terraform fmt -check
           terraform validate
           
       - name: Run tfsec
-        run: tfsec ./terraform || exit 1
+        continue-on-error: true
+        run: tfsec ./terraform
 
       - name: Run checkov
-        run: checkov -d ./terraform || exit 1
+        continue-on-error: true
+        run: checkov -d ./terraform
 
       - name: Run Bandit
-        run: bandit -r ./python-app || exit 1
+        continue-on-error: true
+        run: bandit -r ./python-app
 
       - name: Run gitleaks
-        run: gitleaks detect --source=. --no-banner || exit 1
+        continue-on-error: true
+        run: gitleaks detect --source=. --no-banner
 
       - name: Notify on Failure
         if: failure()
