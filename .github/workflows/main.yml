@@ -61,8 +61,17 @@ jobs:
       - name: Run Bandit
         id: bandit
         run: |
-          bandit -r ./python-app -f json -o bandit-results.json -ll -v --show-ignored || true
-          bandit -r ./python-app -ll -v --show-ignored
+          # Generate JSON for parsing (capture ALL severity levels)
+          bandit -r ./python-app -f json -o bandit-results.json || true
+          
+          # Show full detailed report (all severity levels)
+          echo "=== Full Bandit Security Report ==="
+          bandit -r ./python-app -f txt -ll
+          
+          # Also show a cleaner custom format with all issues
+          echo ""
+          echo "=== All Bandit Issues Found ==="
+          bandit -r ./python-app --format custom --msg-template "{line}: [{test_id}] {severity} - {msg}" || true
         continue-on-error: true
       
       - name: Run gitleaks
@@ -87,20 +96,22 @@ jobs:
             fi
           fi
           
-          # Check Bandit for MEDIUM/HIGH issues or hardcoded passwords (B105)
+          # Check Bandit for MEDIUM/HIGH issues AND hardcoded passwords
           if [ -f bandit-results.json ]; then
             HIGH_BANDIT=$(cat bandit-results.json | jq '.metrics.SEVERITY_HIGH // 0')
             MEDIUM_BANDIT=$(cat bandit-results.json | jq '.metrics.SEVERITY_MEDIUM // 0')
+            
+            # Check specifically for hardcoded password issues (B105, B106, B107)
+            PASSWORD_ISSUES=$(cat bandit-results.json | jq '[.results[] | select(.test_id == "B105" or .test_id == "B106" or .test_id == "B107")] | length' || echo "0")
+            
             echo "Bandit: Found $HIGH_BANDIT HIGH and $MEDIUM_BANDIT MEDIUM severity issues"
-
-            # Check for B105 (hardcoded passwords)
-            B105_COUNT=$(cat bandit-results.json | jq '[.results[]? | select(.test_id == "B105")] | length' || echo "0")
-
+            echo "Bandit: Found $PASSWORD_ISSUES hardcoded password issues"
+            
             if [ "$HIGH_BANDIT" -gt 0 ] || [ "$MEDIUM_BANDIT" -gt 0 ]; then
               echo "❌ Bandit: Blocking deployment due to MEDIUM/HIGH issues"
               BLOCK_DEPLOYMENT=true
-            elif [ "$B105_COUNT" -gt 0 ]; then
-              echo "❌ Bandit: Found $B105_COUNT hardcoded passwords (B105) - blocking deployment"
+            elif [ "$PASSWORD_ISSUES" -gt 0 ]; then
+              echo "❌ Bandit: Blocking deployment due to hardcoded passwords (even though severity is LOW)"
               BLOCK_DEPLOYMENT=true
             else
               echo "⚠️ Bandit: LOW severity issues found but not blocking deployment"
@@ -128,7 +139,8 @@ jobs:
   deploy:
     name: Deploy Infrastructure with Terraform
     runs-on: ubuntu-latest
-    needs: scan
+    needs: scan  # Makes deployment dependent on successful security scans
+    # Only deploy on push to develop, not on pull requests
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     steps:
       - name: Checkout code
